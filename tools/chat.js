@@ -5,6 +5,7 @@ const authorManager = require('ep_etherpad-lite/node/db/AuthorManager');
 const padMessageHandler = require('ep_etherpad-lite/node/handler/PadMessageHandler');
 const {ChatMessage} = require('ep_etherpad-lite/static/js/ChatMessage');
 const epAiCore = require('ep_ai_core/index');
+const {resolveAuthor, authorSchema} = require('./author');
 
 module.exports = (server) => {
   server.tool('get_chat_history',
@@ -44,15 +45,14 @@ module.exports = (server) => {
       {
         padId: z.string(),
         message: z.string(),
-        authorName: z.string().optional(),
+        ...authorSchema(z),
       },
-      async ({padId, message, authorName}) => {
+      async ({padId, message, authorMapper, authorName}) => {
         if (!epAiCore.accessControl.canRead(padId, epAiCore.getSettings())) {
           return {content: [{type: 'text', text: 'Access denied'}]};
         }
-        const author =
-            await authorManager.createAuthor(authorName || 'AI (MCP)');
-        const chatMsg = new ChatMessage(message, author.authorID, Date.now());
+        const authorId = await resolveAuthor({authorMapper, authorName});
+        const chatMsg = new ChatMessage(message, authorId, Date.now());
         await padMessageHandler.sendChatMessageToPadClients(chatMsg, padId);
         return {content: [{type: 'text', text: 'Message sent'}]};
       });

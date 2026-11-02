@@ -1,17 +1,12 @@
 'use strict';
 const {z} = require('zod');
 const padManager = require('ep_etherpad-lite/node/db/PadManager');
-const authorManager = require('ep_etherpad-lite/node/db/AuthorManager');
 const Changeset = require('ep_etherpad-lite/static/js/Changeset');
 const padMessageHandler = require('ep_etherpad-lite/node/handler/PadMessageHandler');
 const epAiCore = require('ep_ai_core/index');
+const {resolveAuthor, authorSchema} = require('./author');
 const log4js = require('ep_etherpad-lite/node_modules/log4js');
 const logger = log4js.getLogger('ep_ai_mcp:editing');
-
-const getAiAuthor = async (authorName) => {
-  const result = await authorManager.createAuthor(authorName || 'AI (MCP)');
-  return result.authorID;
-};
 
 module.exports = (server) => {
   server.tool('edit_pad',
@@ -23,16 +18,16 @@ module.exports = (server) => {
         text: z.string().describe('Text to insert/append or replacement text'),
         position: z.number().optional().describe('Position for insert'),
         findText: z.string().optional().describe('Text to find for replace'),
-        authorName: z.string().optional(),
+        ...authorSchema(z),
       },
-      async ({padId, action, text, position, findText, authorName}) => {
+      async ({padId, action, text, position, findText, authorMapper, authorName}) => {
         if (!epAiCore.accessControl.canWrite(padId, epAiCore.getSettings())) {
           return {
             content: [{type: 'text', text: 'Access denied: AI cannot edit this pad'}],
           };
         }
         const pad = await padManager.getPad(padId);
-        const authorId = await getAiAuthor(authorName);
+        const authorId = await resolveAuthor({authorMapper, authorName});
         const currentText = pad.text();
         const attribs = [['author', authorId]];
         const pool = pad.pool;
@@ -77,8 +72,9 @@ module.exports = (server) => {
       {
         padId: z.string().optional(),
         text: z.string().optional(),
+        ...authorSchema(z),
       },
-      async ({padId, text}) => {
+      async ({padId, text, authorMapper, authorName}) => {
         const id = padId ||
             `ai-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         // Access control: check if AI can write to this pad ID
@@ -89,7 +85,7 @@ module.exports = (server) => {
         if (exists) {
           return {content: [{type: 'text', text: `Pad already exists: ${id}`}]};
         }
-        await padManager.getPad(id, text || '');
+        await padManager.getPad(id, text || '', await resolveAuthor({authorMapper, authorName}));
         return {
           content: [{type: 'text', text: JSON.stringify({padId: id, created: true}, null, 2)}],
         };

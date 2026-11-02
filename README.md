@@ -69,6 +69,12 @@ Unauthenticated requests receive a `401` response.
 All tools respect the access control settings configured in `ep_ai_core`. Pads
 with `none` access are hidden; pads with `readOnly` access block editing tools.
 
+`edit_pad`, `create_pad` and `send_chat_message` take an optional
+`authorMapper`: calls with the same key are attributed to the same Etherpad
+author, with one colour, as `createAuthorIfNotExistsFor` in the HTTP API does.
+`authorName` names that author. Without `authorMapper` every call creates a
+new author.
+
 ## Security
 
 **HTTPS required in production.** The MCP endpoint transmits API keys and
