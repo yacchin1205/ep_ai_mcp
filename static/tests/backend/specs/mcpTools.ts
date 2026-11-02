@@ -42,6 +42,30 @@ describe('ep_ai_mcp - MCP endpoint', function () {
     });
   });
 
+  describe('JSON-RPC over HTTP', function () {
+    it('answers initialize', async function () {
+      // Etherpad's express.json() consumes the body before the route runs;
+      // the transport must be handed the parsed body or every call is a
+      // parse error.
+      const res = await agent.post('/mcp')
+          .set('Authorization', await generateJWTToken())
+          .set('Content-Type', 'application/json')
+          .set('Accept', 'application/json, text/event-stream')
+          .send({jsonrpc: '2.0', method: 'initialize', id: 1, params: {
+            protocolVersion: '2025-03-26',
+            capabilities: {},
+            clientInfo: {name: 'test', version: '1.0'},
+          }})
+          .expect(200);
+      const messages = res.text.split('\n')
+          .filter((line: string) => line.startsWith('data:'))
+          .map((line: string) => JSON.parse(line.slice(5)));
+      assert.equal(messages.length, 1);
+      assert.equal(messages[0].id, 1);
+      assert.equal(messages[0].result.serverInfo.name, 'etherpad');
+    });
+  });
+
   describe('pad operations via API', function () {
     let padId: string;
 
