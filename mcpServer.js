@@ -47,7 +47,8 @@ const wrapWithAuditLog = (server) => {
   server.tool = (name, description, schema, handler) => {
     const wrappedHandler = async (args) => {
       const padId = args.padId || args.padID || '(none)';
-      logger.info(`MCP tool call: ${name} padId=${padId}`);
+      const author = args.authorMapper ? ` authorMapper=${args.authorMapper}` : '';
+      logger.info(`MCP tool call: ${name} padId=${padId}${author}`);
       return handler(args);
     };
     return origTool(name, description, schema, wrappedHandler);
